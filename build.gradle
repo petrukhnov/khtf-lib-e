@@ -1,0 +1,178 @@
+buildscript {
+
+    ext.kotlin_version = '1.3.50'
+
+    repositories {
+        mavenCentral()
+        google()
+        jcenter()
+        maven { url "https://dl.bintray.com/kotlin/kotlin-eap" }
+        maven { url 'https://dl.bintray.com/kotlin/kotlin-dev' }
+    }
+
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+
+}
+
+plugins {
+    //kotlin MPP
+    id 'org.jetbrains.kotlin.multiplatform' version '1.3.50'
+
+    id 'idea'
+
+    //publish and release
+    id 'maven-publish'
+    id 'net.researchgate.release' version '2.8.1'
+}
+
+group 'com.ekahau.prototypes.khtf'
+
+def mavenRepo = findProperty('khtfmavenrepo')
+
+repositories {
+    jcenter()
+    mavenCentral()
+    maven { url "https://dl.bintray.com/kotlin/kotlin-dev" }
+    maven { url "https://dl.bintray.com/kotlin/kotlin-eap" }
+    maven { url mavenRepo?"${mavenRepo}/releases":"" }
+}
+
+kotlin {
+
+    /*
+    === DEPENDENCIES ===
+     */
+    sourceSets {
+
+        //lib contain only common, platform independent code
+        commonMain {
+            dependencies {
+                implementation 'org.jetbrains.kotlin:kotlin-stdlib'
+                implementation 'org.jetbrains.kotlin:kotlin-stdlib-common'
+            }
+        }
+
+        commonTest {
+            dependencies {
+                implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
+                implementation 'org.jetbrains.kotlin:kotlin-test-common'
+                implementation 'org.jetbrains.kotlin:kotlin-test-annotations-common'
+
+                implementation 'org.jetbrains.kotlin:kotlin-test'
+                implementation 'org.jetbrains.kotlin:kotlin-test-junit5'
+            }
+        }
+
+        iosArm64 {
+
+        }
+
+        iosX64 {
+
+        }
+
+        jvmMain {
+
+        }
+
+
+        jvmTest {
+            dependencies {
+                implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
+                implementation 'org.jetbrains.kotlin:kotlin-test-common'
+                implementation 'org.jetbrains.kotlin:kotlin-test-annotations-common'
+
+                //tests
+                implementation 'org.jetbrains.kotlin:kotlin-test'
+                implementation 'org.jetbrains.kotlin:kotlin-test-junit5'
+                implementation 'org.junit.jupiter:junit-jupiter-api:5.5.1'
+                implementation 'org.junit.jupiter:junit-jupiter-params:5.5.1'
+                implementation 'org.junit.jupiter:junit-jupiter-engine:5.5.1'
+                //xml parsing
+                implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.9.9'
+                implementation 'com.fasterxml.jackson.module:jackson-module-kotlin:2.9.9'
+                implementation 'org.apache.commons:commons-lang3:3.9'
+                //logging
+                implementation 'io.github.microutils:kotlin-logging:1.7.6'
+                implementation 'ch.qos.logback:logback-classic:1.2.3'
+                implementation 'org.slf4j:slf4j-api:1.7.28'
+            }
+        }
+
+
+    } //sourceSets
+
+    /*
+    === builds ===
+    */
+    targets {
+        //jvm (android, backend, desktop)
+        fromPreset(presets.jvm, 'jvm')
+
+        //ios real device
+        iosArm64("iosArm64")
+        //ios simulator
+        iosX64("iosX64")
+
+    }
+
+}
+
+jvmTest {
+    useJUnitPlatform()
+}
+
+/*
+=== publish jar to nexus ===
+ */
+// default values, override them in USER\.gradle\gradle.properties with your credentials
+publishing {
+    publications {
+        jvm {
+            artifactId "${rootProject.name}-jvm"
+        }
+        metadata {
+
+        }
+
+        iosArm64 {
+
+        }
+
+        iosX64 {
+
+        }
+
+    }
+
+    repositories {
+        maven {
+            url "${mavenRepo}/${project.version.endsWith('-SNAPSHOT') ? 'snapshots' : 'releases' }"
+            credentials {
+                username findProperty('khtfmavenuser')
+                password findProperty('khtfmavenpassword')
+            }
+        }
+    }
+}
+
+/*
+=== release lib for jvm and ios ===
+
+if building artifact for jvm or iOS failed, then release reverted
+
+On your CI:
+./gradlew release -Prelease.useAutomaticVersion=true
+ */
+release {
+    beforeReleaseBuild.dependsOn allTests
+
+    //explicit git branch is required fore gradle debug
+    git {
+        requireBranch = '(master|\\d+\\.\\d+)'
+    }
+
+    afterReleaseBuild.dependsOn publish
+}
